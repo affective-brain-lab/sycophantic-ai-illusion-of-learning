@@ -1,0 +1,565 @@
+# Sycophantic AI generates an Illusion of Learning - with regression tables
+# Experiment 1
+
+#Packages
+# install.packages(c("tidyverse", "readr", "lme4", "lmerTest", "car",
+#                    "psych", "ppcor", "rsq", "ggtext", "BayesFactor",
+#                    "mediation", "broom", "gt", "GGally", "ggthemes",
+#                    "conflicted"))
+
+library(tidyverse)
+library(readr)
+library(lme4)
+library(lmerTest)      # p-values for mixed models (word count)
+library(car)
+library(psych)
+library(ppcor)         # partial correlations
+library(rsq)           # partial R²
+library(ggtext)        # element_markdown for axis labels
+library(BayesFactor)   # Bayesian analyses
+library(broom)         # tidy model output (regression tables)
+library(gt)            # formatted regression tables
+library(grid)          # grid.draw for gt tables
+library(conflicted)
+library(mediation)     # causal mediation (masks some dplyr verbs – loaded last)
+
+# Resolve common namespace conflicts
+conflict_prefer("select", "dplyr")
+conflict_prefer("filter", "dplyr")
+conflict_prefer("recode", "dplyr")
+conflict_prefer("lmer",   "lmerTest")
+conflicts_prefer(mediation::mediate)
+
+
+# Load data
+#df_main: Main Experiment 1 dataset (sycophantic vs. non-sycophantic AI)
+#df_ctrl: Extended dataset includes control group (used only for the control group comparison)
+df_main <- read_csv("Exp1_Causal_vf.csv")
+df_ctrl <- read_csv("Exp1_wControl_vf.csv")
+
+#Variable renaming
+df_main <- df_main %>%
+  rename(
+    happy_post              = happy_post_1,
+    happy_pre               = happy_pre_1,
+    perceived_comp_post     = understanding_post_1,
+    perceived_comp_pre      = understanding_pre_1,
+    desire_learn_phil       = avg_learn,
+    desire_learn_arthistory = interest_post_1,
+    est_mark_transferexam   = Confidence_2_1,
+    est_mark_initialexam    = confidence_1_1
+  ) %>%
+  mutate(
+    condition = recode(condition,
+                       "positive" = "sycophantic",
+                       "negative" = "non_sycophantic"),
+    condition = factor(condition, levels = c("non_sycophantic", "sycophantic"))
+  )
+
+df_ctrl <- df_ctrl %>%
+  rename(
+    happy_post              = happy_post_1,
+    happy_pre               = happy_pre_1,
+    perceived_comp_post     = understanding_post_1,
+    perceived_comp_pre      = understanding_pre_1,
+  ) %>%
+  mutate(
+    condition = recode(condition,
+                       "positive" = "sycophantic",
+                       "negative" = "non_sycophantic"),
+    condition = factor(condition,
+                       levels = c("control", "non_sycophantic", "sycophantic"))
+  )
+
+
+# Manipulation check
+#Linear regressions: each tone dimension ~ condition
+tone_dvs <- c("empathetic_1", "polite_1", "helpful_1", "blunt_1", "confrontational_1")
+
+for (dv in tone_dvs) {
+  cat("\n── Manipulation check:", dv, "──\n")
+  m <- lm(as.formula(paste(dv, "~ condition")), data = df_main)
+  print(summary(m))
+  print(rsq.partial(m, adj = FALSE))
+}
+
+#Descriptive statistics by condition 
+df_main %>%
+  group_by(Condition_label) %>%
+  summarise(
+    empathy_M          = mean(empathetic_1, na.rm = TRUE),
+    empathy_SD         = sd(empathetic_1,   na.rm = TRUE),
+    politeness_M       = mean(polite_1,      na.rm = TRUE),
+    politeness_SD      = sd(polite_1,        na.rm = TRUE),
+    helpfulness_M      = mean(helpful_1,     na.rm = TRUE),
+    helpfulness_SD     = sd(helpful_1,       na.rm = TRUE),
+    bluntness_M        = mean(blunt_1,       na.rm = TRUE),
+    bluntness_SD       = sd(blunt_1,         na.rm = TRUE),
+    confrontation_M    = mean(confrontational_1, na.rm = TRUE),
+    confrontation_SD   = sd(confrontational_1,   na.rm = TRUE)
+  )
+
+#Figure 2: Manipulation check violin plot 
+# Condition labels for plotting
+df_main <- df_main %>%
+  mutate(Condition_label = factor(
+    recode(condition,
+           "sycophantic"     = "Sycophantic AI",
+           "non_sycophantic" = "Non-Sycophantic AI"),
+    levels = c("Sycophantic AI", "Non-Sycophantic AI")
+  ))
+
+tone_labels <- c(
+  empathetic_1      = "Empathy",
+  polite_1          = "Politeness",
+  helpful_1         = "Helpfulness",
+  confrontational_1 = "Confrontation",
+  blunt_1           = "Bluntness"
+)
+
+df_mc_long <- df_main %>%
+  pivot_longer(cols      = names(tone_labels),
+               names_to  = "Tone",
+               values_to = "Rating") %>%
+  mutate(Tone = factor(tone_labels[Tone],
+                       levels = c("Empathy", "Politeness", "Helpfulness",
+                                  "Bluntness", "Confrontation")))
+
+tone_colors <- c(
+  Empathy       = "#FF0000",
+  Politeness    = "#FF8C00",
+  Helpfulness   = "#228B22",
+  Bluntness     = "#87CEEB",
+  Confrontation = "#00008B"
+)
+
+ggplot(df_mc_long, aes(x = Tone, y = Rating, fill = Tone)) +
+  geom_violin(trim = FALSE, alpha = 0.4, scale = "width") +
+  geom_jitter(width = 0.15, alpha = 0.35, size = 0.6, color = "black") +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 5, fill = "white") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.15, linewidth = 0.8) +
+  facet_wrap(~Condition_label, strip.position = "top") +
+  scale_fill_manual(values = tone_colors) +
+  labs(x = "", y = "Ratings") +
+  coord_cartesian(ylim = c(0, 105)) +
+  theme_classic(base_size = 30) +
+  theme(
+    strip.text       = element_blank(),
+    axis.text.x      = element_text(angle = 35, hjust = 1, size = 30),
+    legend.position  = "none"
+  )
+
+
+## Analyses: Sycophantic AI -> subjective states (mood, perceived competence, confidence, estimated mark, desire to learn) 
+model_mood <- lm(happy_post ~ condition + happy_pre + accuracy_pre + accuracy_post, data = df_main)
+summary(model_mood)
+rsq.partial(model_mood, adj = FALSE)
+
+model_perc_comp <- lm(perceived_comp_post ~ condition + perceived_comp_pre + accuracy_pre + accuracy_post, data = df_main)
+summary(model_perc_comp)
+rsq.partial(model_perc_comp, adj = FALSE)
+
+model_conf_trial <- lm(confi_trial_post ~ condition + confi_trial_pre + accuracy_pre + accuracy_post, data = df_main)
+summary(model_conf_trial)
+rsq.partial(model_conf_trial, adj = FALSE)
+
+model_est_mark <- lm(est_mark_transferexam ~ condition + est_mark_initialexam + accuracy_pre + accuracy_post, data = df_main)
+summary(model_est_mark)
+rsq.partial(model_est_mark, adj = FALSE)
+
+model_dtl_phil <- lm(desire_learn_phil ~ condition + accuracy_pre + accuracy_post, data = df_main)
+summary(model_dtl_phil)
+rsq.partial(model_dtl_phil, adj = FALSE)
+
+model_dtl_art <- lm(desire_learn_arthistory ~ condition + accuracy_pre + accuracy_post, data = df_main)
+summary(model_dtl_art)
+rsq.partial(model_dtl_art, adj = FALSE)
+
+
+# Mediation analyses: Sycophancy → desire to learn
+# Mediation analyses, via: (a) mood, (b) perceived competence.
+df_main$condition <- factor(df_main$condition,levels = c("non_sycophantic", "sycophantic"))
+#Mediator model: mood ──
+m_med_mood <- lm(happy_post ~ condition + happy_pre + accuracy_pre + accuracy_post, data = df_main)
+# Outcome model: desire to learn (mood)
+m_out_mood <- lm(desire_learn_phil ~ condition + happy_post + happy_pre + accuracy_pre + accuracy_post, data = df_main)
+set.seed(2026)
+med_mood <- mediate(m_med_mood, m_out_mood,
+                    treat         = "condition",
+                    mediator      = "happy_post",
+                    treat.value   = "sycophantic",
+                    control.value = "non_sycophantic",
+                    boot = TRUE, sims = 1000)
+summary(med_mood)
+#Mediator model: perceived competence
+m_med_pc <- lm(perceived_comp_post ~ condition + perceived_comp_pre + accuracy_pre + accuracy_post, data = df_main)
+#Outcome model: desire to learn (perceived comp)
+m_out_pc <- lm(desire_learn_phil ~ condition + perceived_comp_post + perceived_comp_pre +
+                 accuracy_pre + accuracy_post,
+               data = df_main)
+set.seed(2026)
+med_pc <- mediate(m_med_pc, m_out_pc,
+                  treat         = "condition",
+                  mediator      = "perceived_comp_post",
+                  treat.value   = "sycophantic",
+                  control.value = "non_sycophantic",
+                  boot = TRUE, sims = 1000)
+summary(med_pc)
+
+#Analyses: Competence (accuracy)
+model_comp_post <- lm(accuracy_post ~ condition + accuracy_pre, data = df_main)
+summary(model_comp_post)
+rsq.partial(model_comp_post, adj = FALSE)
+
+model_comp_pre <- lm(accuracy_pre ~ condition, data = df_main)
+summary(model_comp_pre)
+rsq.partial(model_comp_pre, adj = FALSE)
+
+#Bayes factor analyses (BF₀₁ = reduced / full)
+df2 <- as.data.frame(df_main)
+df2$condition <- factor(df2$condition)
+#Accuracy post model
+set.seed(2026)
+bf_full    <- lmBF(accuracy_post ~ condition + accuracy_pre, data = df2)
+bf_reduced <- lmBF(accuracy_post ~ accuracy_pre,             data = df2)
+bf_01_post <- bf_reduced / bf_full
+bf_01_post
+#Accuracy pre model
+set.seed(2026)
+bf_pre    <- anovaBF(accuracy_pre ~ condition, data = df2)
+bf_01_pre <- 1 / bf_pre
+bf_01_pre
+
+# Dissociation: perceived vs. actual competence 
+# Key finding: the correlation between perceived and actual competence differs
+# across conditions – it becomes negative under sycophancy.
+##Partial Pearson correlations:
+
+df_syc     <- df_main %>% filter(condition == "sycophantic")
+df_non_syc <- df_main %>% filter(condition == "non_sycophantic")
+
+#Partial Pearson correlations (controlling for accuracy_pre & perceived_comp_pre)
+res_syc <- pcor.test(
+  x = df_syc$perceived_comp_post,
+  y = df_syc$accuracy_post,
+  z = df_syc[, c("accuracy_pre", "perceived_comp_pre")])
+cat("Sycophantic – partial r =", round(res_syc$estimate, 3),
+    "  p =", round(res_syc$p.value, 3), "\n")
+res_non_syc <- pcor.test(
+  x = df_non_syc$perceived_comp_post,
+  y = df_non_syc$accuracy_post,
+  z = df_non_syc[, c("accuracy_pre", "perceived_comp_pre")])
+cat("Non-sycophantic – partial r =", round(res_non_syc$estimate, 3),
+    "  p =", round(res_non_syc$p.value, 3), "\n")
+
+#95% CIs for partial correlations (Fisher z-transform ± z_crit / sqrt(n - k - 3), back-transforme)
+pcor_ci <- function(r, n, k, conf.level = 0.95) {
+  z     <- atanh(r)
+  se    <- 1 / sqrt(n - k - 3)          
+  zcrit <- qnorm(1 - (1 - conf.level) / 2)
+  c(lower = tanh(z - zcrit * se),
+    upper = tanh(z + zcrit * se))}
+k <- 2  
+ci_syc     <- pcor_ci(res_syc$estimate,     res_syc$n,     k)
+ci_non_syc <- pcor_ci(res_non_syc$estimate, res_non_syc$n, k)
+cat("Sycophantic 95% CI:     [", round(ci_syc[1], 2), ",", round(ci_syc[2], 2), "]\n")
+cat("Non-sycophantic 95% CI: [", round(ci_non_syc[1], 2), ",", round(ci_non_syc[2], 2), "]\n")
+
+# Fisher's r-to-z test comparing the two partial correlations
+#Note: Using atanh(): idiomatic R equivalent of the 0.5*log((1+r)/(1-r)) transform).
+r_syc     <- res_syc$estimate
+r_non_syc <- res_non_syc$estimate
+n_syc     <- res_syc$n
+n_non_syc <- res_non_syc$n
+#Fisher z-transform for sycophantic condition
+z_syc     <- atanh(r_syc)      
+#Fisher z-transform for non-sycophantic condition
+z_non_syc <- atanh(r_non_syc) 
+SE_diff   <- sqrt(1 / (n_syc - 3) + 1 / (n_non_syc - 3))
+z_diff    <- (z_syc - z_non_syc) / SE_diff
+p_fisher  <- 2 * (1 - pnorm(abs(z_diff)))
+cat("Fisher's r-to-z: z =", round(z_diff, 2), "  p =", round(p_fisher, 3), "\n")
+
+# Affective mechanism: Mediation analysis: sycophancy -> mood -> perceived comp
+# Mediator mood 
+m_med_mood2 <- lm(happy_post ~ condition + happy_pre + accuracy_pre + accuracy_post, data = df_main)
+summary(m_med_mood2)
+#Outcome model perceived competence (mood)
+m_out_pc2 <- lm(perceived_comp_post ~ condition + happy_post + happy_pre +
+                  perceived_comp_pre + accuracy_pre + accuracy_post,
+                data = df_main)
+summary(m_out_pc2)
+set.seed(2026)
+med_mood_pc <- mediate(m_med_mood2, m_out_pc2,
+                       treat         = "condition",
+                       mediator      = "happy_post",
+                       treat.value   = "sycophantic",
+                       control.value = "non_sycophantic",
+                       boot = TRUE, sims = 1000)
+summary(med_mood_pc)
+
+# Mood → actual competence
+model_mood_comp <- lm(accuracy_post ~ happy_post + happy_pre + accuracy_pre, data = df_main)
+summary(model_mood_comp)
+rsq.partial(model_mood_comp, adj = FALSE)
+
+
+# Control group comparison
+# Sycophantic vs. control
+df_syc_ctrl <- df_ctrl %>% filter(condition %in% c("control", "sycophantic"))
+model_ctrl_syc <- lm(accuracy_post ~ condition + accuracy_pre, data = df_syc_ctrl)
+summary(model_ctrl_syc)
+rsq.partial(model_ctrl_syc, adj = FALSE)
+confint(model_ctrl_syc, level = 0.95)
+# Non-sycophantic vs. control
+df_non_syc_ctrl <- df_ctrl %>% filter(condition %in% c("control", "non_sycophantic"))
+model_ctrl_non_syc <- lm(accuracy_post ~ condition + accuracy_pre, data = df_non_syc_ctrl)
+summary(model_ctrl_non_syc)
+rsq.partial(model_ctrl_non_syc, adj = FALSE)
+confint(model_ctrl_non_syc, level = 0.95)
+
+#Demographics
+# Main
+df_main %>%
+  group_by(Gender) %>%
+  summarise(mean_age = mean(Age, na.rm = TRUE),
+            sd_age   = sd(Age, na.rm = TRUE),
+            n        = n())
+round(prop.table(table(df_main$Gender)) * 100, 1)     
+round(prop.table(table(df_main$Income)) * 100, 1)        
+round(prop.table(table(df_main$Ethnicity)) * 100, 1)        
+round(prop.table(table(df_main$Education)) * 100, 1)   
+
+# Control group
+df_control <- df_ctrl %>% filter(condition == "control")
+cat("Control group – Age: M =", round(mean(df_control$Age, na.rm = TRUE), 1),
+    " SD =", round(sd(df_control$Age, na.rm = TRUE), 1), "\n")
+df_control %>%
+  group_by(Gender) %>%
+  summarise(mean_age = mean(Age, na.rm = TRUE),
+            sd_age   = sd(Age, na.rm = TRUE),
+            n        = n())
+round(prop.table(table(df_control$Gender)) * 100, 1)
+round(prop.table(table(df_control$Income)) * 100, 1)
+round(prop.table(table(df_control$Ethnicity)) * 100, 1)
+round(prop.table(table(df_control$Education)) * 100, 1)
+
+
+#Figures
+# Shared color palette
+col_syc     <- "#A8E6A3"   # light green  (Sycophantic AI)
+col_non_syc <- "#F4A6A6"   # light red    (Non-Sycophantic AI)
+col_ctrl    <- "darkgrey"  # control
+
+# Condition labels for Figures 3 & 4a
+df_main <- df_main %>%
+  mutate(Condition_label = factor(
+    recode(condition,
+           "sycophantic"     = "Sycophantic\n AI",
+           "non_sycophantic" = "Non-Sycophantic\n AI"),
+    levels = c("Sycophantic\n AI", "Non-Sycophantic\n AI")
+  ))
+
+fill_vals_2cond <- c(
+  "Sycophantic\n AI"     = col_syc,
+  "Non-Sycophantic\n AI" = col_non_syc
+)
+
+#Fig. 3a: Mood ──
+ggplot(df_main, aes(x = Condition_label, y = happy_post, fill = Condition_label)) +
+  geom_violin(trim = FALSE, color = "black", alpha = 0.4, scale = "width") +
+  geom_jitter(width = 0.15, alpha = 0.35, size = 0.6, color = "black") +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 6, fill = "white") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2, linewidth = 1,
+               color = "black") +
+  scale_fill_manual(values = fill_vals_2cond) +
+  scale_x_discrete(labels = function(x) gsub("\n", "<br>", x)) +
+  labs(x = "",
+       y = "<b style='font-weight:900;'>Mood</b><br><span style='font-size:22pt'>(post AI interaction)</span>") +
+  coord_cartesian(ylim = c(0, 100)) +
+  theme_classic(base_size = 20) +
+  theme(
+    axis.title.y    = element_markdown(size = 30, margin = margin(r = 1)),
+    axis.text.x     = element_markdown(size = 30, face = "bold"),
+    legend.position = "none"
+  )
+
+#Fig. 3b: Perceived Competence ──
+ggplot(df_main, aes(x = Condition_label, y = perceived_comp_post, fill = Condition_label)) +
+  geom_violin(trim = FALSE, color = "black", alpha = 0.4, scale = "width") +
+  geom_jitter(width = 0.15, alpha = 0.35, size = 0.6, color = "black") +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 6, fill = "white") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2, linewidth = 1,
+               color = "black") +
+  scale_fill_manual(values = fill_vals_2cond) +
+  scale_x_discrete(labels = function(x) gsub("\n", "<br>", x)) +
+  labs(x = "",
+       y = "<b style='font-weight:900;'>Perceived Competence</b><br><span style='font-size:22pt'>(post AI interaction)</span>") +
+  coord_cartesian(ylim = c(0, 100)) +
+  theme_classic(base_size = 20) +
+  theme(
+    axis.title.y    = element_markdown(size = 30, margin = margin(r = 1)),
+    axis.text.x     = element_markdown(size = 30, face = "bold"),
+    legend.position = "none"
+  )
+
+#Fig. 3c: Desire to learn (philosophy & art history, by condition) ──
+tone_text_cols <- c(
+  "Sycophantic AI"     = "#4DAF4A",
+  "Non-Sycophantic AI" = "#D55E5E"
+)
+
+df_dtl_long <- df_main %>%
+  pivot_longer(cols      = c(desire_learn_phil, desire_learn_arthistory),
+               names_to  = "Domain",
+               values_to = "Desire") %>%
+  mutate(
+    Domain = recode(Domain,
+                    desire_learn_phil       = "Learning domain (Philosophy)",
+                    desire_learn_arthistory = "New domain (Art History)"),
+    Tone = factor(
+      recode(as.character(condition),
+             "sycophantic"     = "Sycophantic AI",
+             "non_sycophantic" = "Non-Sycophantic AI"),
+      levels = c("Sycophantic AI", "Non-Sycophantic AI")
+    ),
+    x_group = factor(
+      paste(Domain, Tone, sep = " | "),
+      levels = c(
+        "Learning domain (Philosophy) | Sycophantic AI",
+        "Learning domain (Philosophy) | Non-Sycophantic AI",
+        "New domain (Art History) | Sycophantic AI",
+        "New domain (Art History) | Non-Sycophantic AI"
+      )
+    )
+  )
+
+fill_vals_tone <- c("Sycophantic AI" = col_syc, "Non-Sycophantic AI" = col_non_syc)
+
+ggplot(df_dtl_long, aes(x = x_group, y = Desire, fill = Tone)) +
+  geom_violin(trim = FALSE, alpha = 0.45, color = "black", scale = "width") +
+  geom_jitter(width = 0.15, alpha = 0.35, size = 0.6, color = "black") +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 6, fill = "white") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2, linewidth = 1,
+               color = "black") +
+  scale_fill_manual(values = fill_vals_tone) +
+  scale_x_discrete(labels = function(x) {
+    vapply(x, function(lbl) {
+      parts <- strsplit(lbl, " \\| ")[[1]]
+      col   <- tone_text_cols[parts[2]]
+      paste0("<span style='font-size:22pt; font-weight:700;'>", parts[1], "</span><br>",
+             "<span style='color:", col, "; font-size:18pt; font-weight:700;'>",
+             parts[2], "</span>")
+    }, character(1))
+  }) +
+  labs(x = "",
+       y = "<b style='font-weight:900;'>Desire to learn</b><br><span style='font-size:22pt'>(post AI interaction)</span>") +
+  guides(fill = guide_legend(keyheight = unit(2, "lines"),
+                             override.aes = list(alpha = 1, color = NA))) +
+  coord_cartesian(ylim = c(0, 100)) +
+  theme_classic(base_size = 20) +
+  theme(
+    axis.title.y         = element_markdown(size = 30, margin = margin(r = 12)),
+    axis.text.x          = element_markdown(size = 10, lineheight = 0.95),
+    legend.position      = "right",
+    legend.title         = element_blank(),
+    legend.key           = element_rect(fill = "white", colour = NA),
+    legend.text          = element_text(size = 26),
+    legend.spacing.y     = unit(0, "pt")
+  )
+
+#Fig. 4a: Transfer exam performance (with control group)
+df_ctrl <- df_ctrl %>%
+  mutate(Condition_label = factor(
+    recode(as.character(condition),
+           "sycophantic"     = "Sycophantic AI",
+           "non_sycophantic" = "Non-Sycophantic AI",
+           "control"         = "Without\n feedback"),
+    levels = c("Without\n feedback", "Non-Sycophantic AI", "Sycophantic AI")
+  ))
+
+fill_vals_3cond <- c(
+  "Without\n feedback"  = col_ctrl,
+  "Non-Sycophantic AI"  = col_non_syc,
+  "Sycophantic AI"      = col_syc
+)
+
+ggplot(df_ctrl, aes(x = Condition_label, y = accuracy_post, fill = Condition_label)) +
+  geom_violin(trim = FALSE, alpha = 0.4, scale = "width", color = "black") +
+  geom_jitter(width = 0.15, alpha = 0.35, size = 0.6, color = "black") +
+  stat_summary(fun = mean, geom = "point", shape = 23, size = 6, fill = "white") +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2, linewidth = 1) +
+  scale_fill_manual(values = fill_vals_3cond,
+                    labels = c("Without\n feedback" = "Without feedback",
+                               "Non-Sycophantic AI" = "Non-Sycophantic AI",
+                               "Sycophantic AI"     = "Sycophantic AI")) +
+  guides(fill = guide_legend(keyheight = unit(2, "lines"),
+                             override.aes = list(alpha = 1, color = NA))) +
+  labs(x = "",
+       y = paste0("<b style='font-weight:900;'>Competence</b><br>",
+                  "<span style='font-size:22pt;'>(proportion correct on transfer exam)</span>")) +
+  coord_cartesian(ylim = c(0, 1)) +
+  theme_classic() +
+  theme(
+    axis.title.y     = element_markdown(size = 30, margin = margin(r = 1)),
+    axis.text.x      = element_text(size = 30, face = "bold", angle = 30, hjust = 1),
+    legend.position  = "right",
+    legend.title     = element_blank(),
+    legend.key       = element_rect(fill = "white", colour = NA),
+    legend.text      = element_text(size = 24)
+  )
+
+#Fig. 4b: Perceived vs. actual competence (residualized)
+df_non_syc_resid <- df_main %>%
+  filter(condition == "non_sycophantic") %>%
+  mutate(
+    pc_resid  = resid(lm(perceived_comp_post ~ accuracy_pre + perceived_comp_pre,
+                         data = filter(df_main, condition == "non_sycophantic"))),
+    acc_resid = resid(lm(accuracy_post ~ accuracy_pre + perceived_comp_pre,
+                         data = filter(df_main, condition == "non_sycophantic"))),
+    Condition = "Non-sycophantic AI"
+  )
+df_syc_resid <- df_main %>%
+  filter(condition == "sycophantic") %>%
+  mutate(
+    pc_resid  = resid(lm(perceived_comp_post ~ accuracy_pre + perceived_comp_pre,
+                         data = filter(df_main, condition == "sycophantic"))),
+    acc_resid = resid(lm(accuracy_post ~ accuracy_pre + perceived_comp_pre,
+                         data = filter(df_main, condition == "sycophantic"))),
+    Condition = "Sycophantic AI"
+  )
+
+df_resid_all <- bind_rows(df_non_syc_resid, df_syc_resid) %>%
+  mutate(Condition = factor(Condition,
+                            levels = c("Non-sycophantic AI", "Sycophantic AI")))
+
+label_txt <- sprintf("\u0394r[partial]:  z = %.2f", z_diff)
+
+ggplot(df_resid_all, aes(x = acc_resid, y = pc_resid)) +
+  geom_jitter(width = 0.05, alpha = 0.35, size = 0.6, color = "black") +
+  geom_smooth(aes(color = Condition, fill = Condition),
+              method = "lm", se = TRUE, alpha = 0.2, linewidth = 1) +
+  annotate("text", x = 0.10, y = 30,
+           label = label_txt, hjust = 1, size = 5, fontface = "bold") +
+  scale_color_manual(values = c("Non-sycophantic AI" = col_non_syc,
+                                "Sycophantic AI"     = col_syc)) +
+  scale_fill_manual(values  = c("Non-sycophantic AI" = col_non_syc,
+                                "Sycophantic AI"     = col_syc)) +
+  labs(
+    x = paste0("<b style='font-weight:900;'>Competence (Residuals)</b><br>",
+               "<span style='font-size:11pt;'>(transfer exam score, controlling for ",
+               "initial exam & baseline perceived competence)</span>"),
+    y = paste0("<b style='font-weight:900;'>Perceived Competence (Residuals)</b><br>",
+               "<span style='font-size:11pt;'>(post AI interaction, controlling for ",
+               "initial exam & baseline perceived competence)</span>")
+  ) +
+  theme_classic() +
+  theme(
+    axis.text       = element_text(size = 20),
+    axis.title.x    = element_markdown(size = 30, lineheight = 0.1),
+    axis.title.y    = element_markdown(size = 30, lineheight = 0.1),
+    legend.title    = element_blank(),
+    legend.text     = element_text(size = 22),
+    legend.position = "right"
+  )
+
