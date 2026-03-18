@@ -1,5 +1,5 @@
-# Sycophantic AI generates an Illusion of Learning - with regression tables
-# Experiment 1
+# Sycophantic AI generates an Illusion of Learning 
+# Data analysis for Experiment 1
 
 #Packages
 # install.packages(c("tidyverse", "readr", "lme4", "lmerTest", "car",
