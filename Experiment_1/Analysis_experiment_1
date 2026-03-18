@@ -10,18 +10,18 @@
 library(tidyverse)
 library(readr)
 library(lme4)
-library(lmerTest)      # p-values for mixed models (word count)
+library(lmerTest)      
 library(car)
 library(psych)
-library(ppcor)         # partial correlations
-library(rsq)           # partial R²
-library(ggtext)        # element_markdown for axis labels
-library(BayesFactor)   # Bayesian analyses
-library(broom)         # tidy model output (regression tables)
-library(gt)            # formatted regression tables
-library(grid)          # grid.draw for gt tables
+library(ppcor)        
+library(rsq)          
+library(ggtext)       
+library(BayesFactor)   
+library(broom)         
+library(gt)            
+library(grid)          
 library(conflicted)
-library(mediation)     # causal mediation (masks some dplyr verbs – loaded last)
+library(mediation)     
 
 # Resolve common namespace conflicts
 conflict_prefer("select", "dplyr")
