@@ -230,10 +230,8 @@ bf_pre    <- anovaBF(accuracy_pre ~ condition, data = df2)
 bf_01_pre <- 1 / bf_pre
 bf_01_pre
 
-# Dissociation: perceived vs. actual competence 
-# Key finding: the correlation between perceived and actual competence differs
-# across conditions – it becomes negative under sycophancy.
-##Partial Pearson correlations:
+# Dissociation: perceived vs. actual competence
+#Partial Pearson correlations:
 
 df_syc     <- df_main %>% filter(condition == "sycophantic")
 df_non_syc <- df_main %>% filter(condition == "non_sycophantic")
