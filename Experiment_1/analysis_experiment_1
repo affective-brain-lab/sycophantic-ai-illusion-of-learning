@@ -34,8 +34,8 @@ conflicts_prefer(mediation::mediate)
 # Load data
 #df_main: Main Experiment 1 dataset (sycophantic vs. non-sycophantic AI)
 #df_ctrl: Extended dataset includes control group (used only for the control group comparison)
-df_main <- read_csv("Exp1_Causal_vf.csv")
-df_ctrl <- read_csv("Exp1_wControl_vf.csv")
+df_main <- read_csv("data_experiment_1_causal_Main_vf.csv")
+df_ctrl <- read_csv("data_experiment_1_causal_wControl_vf.csv")
 
 #Variable renaming
 df_main <- df_main %>%
