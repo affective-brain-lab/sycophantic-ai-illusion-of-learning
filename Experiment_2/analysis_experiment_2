@@ -28,8 +28,8 @@ conflict_prefer("mediate", "mediation")
 # Load data
 # df_main  : Experiment 2 data (both domains combined, used for all primary analyses)
 # df_ctrl  : Control group experiment 2 (includes the no-feedback control group, used only for the control comparison of the competence (exam accuracy) measures)
-df_main <- read_csv("/Users/a.duett/Downloads/data_experiment_2_correlational_Main_vf.csv")
-df_ctrl <- read_csv("/Users/a.duett/Downloads/data_experiment_2_correlational_wControl_vf.csv")
+df_main <- read_csv("data_experiment_2_correlational_Main_vf.csv")
+df_ctrl <- read_csv("data_experiment_2_correlational_wControl_vf.csv")
 
 #Variable renaming
 df_main <- df_main %>%
